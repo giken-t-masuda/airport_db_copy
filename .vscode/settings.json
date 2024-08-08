@@ -1,0 +1,11 @@
+// 環境変数定義
+{
+    "terminal.integrated.env.linux": {
+        // AWSのリージョン指定
+        "region": "ap-northeast-1",
+
+        // 開発環境のAWSクレデンシャル指定
+        "AWS_PROFILE": "giken-prod",
+
+    }
+}
