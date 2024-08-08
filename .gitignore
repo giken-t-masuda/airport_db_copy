@@ -1,0 +1,8 @@
+routers/__pycache__/*
+routers/mongo/__pycache__/*
+routers/s3/__pycache__/*
+__pycache__/*
+.serverless/*
+
+routers/system/__pycache__/*
+
