@@ -17,7 +17,7 @@ sourceid , destinationid
 """
 
 # Global API
-url = "http://localhost:8888/backup"
+url = "http://localhost:8888/"
 
 # ClientIDからcustomerIDを取得
 def get_customer_id(client_id):
@@ -46,8 +46,8 @@ def get_customer_id(client_id):
         return response
 
 
-# バックアップ処理
-def post_db_backup(url, data=None, json=None):
+# バックアップ / 復元 API処理
+def post_db_backup_restore(url, endpoint:str = "backup",data=None, json=None):
     """
     指定されたURLに対してPOSTリクエストを行う関数。
 
@@ -60,7 +60,7 @@ def post_db_backup(url, data=None, json=None):
         dict: レスポンスのJSONデータ
     """
     try:
-        response = requests.post(url, data=data, json=json, timeout=3600)
+        response = requests.post(f'{url}/{endpoint}', data=data, json=json, timeout=3600)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.HTTPError as http_err:
@@ -88,23 +88,26 @@ def create_param( clientid, customerid:str = None ):
     return backup_param
 
 # 復元パラメータの作成
-def create_param_restore( clientid, customerid:str = None ):
+def create_param_restore( clientid, targetid:str = None ):
+    """
+    clientid: 復元元のClientID --- s3のファイル指定で必要
+    targetid: 復元先のClientID --- customeridを求める必要あり
+    """
     today = datetime.datetime.now().strftime("%Y%m%d")
 
-    _customerid = get_customer_id(clientid)
-    _final_customerid = f"no_data_for_{clientid}" if _customerid == None else _customerid
-
-    backup_param = {
-        "src_uri": "mongodb://giken:gikentrastem@documentdb-4.cluster-czpctwlkkfcu.ap-northeast-1.docdb.amazonaws.com:27017",
-        "src_db": f"{clientid}_DB",
-        "src_addition": [
-            "replicaSet=rs0&readPreference=secondaryPreferred&retryWrites=false"
+    _targetid = get_customer_id(targetid)
+    
+    # debug目的で、DBはgiken-devとする
+    restore_param = {
+        "dst_uri": "mongodb://giken:gikentrastem@dev.cluster-ctvfgbdpqg6c.ap-northeast-1.docdb.amazonaws.com:27017",
+        "dst_db": f"{targetid}_DB",
+        "dst_addition": [
+            "authSource=admin"
         ],
-        "file_type": "gz",
         "s3_bucket": "passer-cloud-customerdata",
-        "s3_path": f"{_final_customerid}/{today}_backup"
+        "s3_key": f"{_targetid}/{clientid}_backup/{clientid}_DB.gz"
     }
-    return backup_param
+    return restore_param
 
 # パラメータ作成　移行先S3へのバックアップ
 def create_param_to_target( clientid, target_id:str = None ):
@@ -139,12 +142,15 @@ def read_file(file_path):
                     # データのバックアップを移行先S3に保存
                     _json = create_param_to_target(clientid=list[0], target_id=_destinatin_id)
                     #print(_json)
-                    _res = post_db_backup(url, json=_json)
+                    _res = post_db_backup_restore(url, json=_json)
                     _res["ClientID"] = list[0]
                     _res["TargetID"] = list[1]
                     print(_res)
                     if "Exception" not in _res["message"]:
                         print("DocDBへ復元開始")
+                        _param_restore = create_param_restore(list[0],list[1])
+                        _res_restore = post_db_backup_restore(url, endpoint="restore", json=_param_restore)
+                        print(_res_restore)
                 else:
                     print("処理しない")
 
